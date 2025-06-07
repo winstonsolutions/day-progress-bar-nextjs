@@ -11,23 +11,36 @@ export default function Home() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [extensionId, setExtensionId] = useState<string | null>(null);
+  const [isClient, setIsClient] = useState(false);
 
+  // 防止hydration错误的第一个useEffect
   useEffect(() => {
+    setIsClient(true);
+  }, []);
+
+  // 只在客户端执行的逻辑
+  useEffect(() => {
+    if (!isClient) return;
+
     // 检测URL中的extension_id参数
     const extensionIdParam = searchParams.get('extension_id');
     if (extensionIdParam) {
       console.log('Received extension_id:', extensionIdParam);
       setExtensionId(extensionIdParam);
 
-      // 可以将extension_id存储在localStorage或sessionStorage中以便后续使用
-      localStorage.setItem('extensionId', extensionIdParam);
+      // 将extension_id存储在localStorage
+      try {
+        localStorage.setItem('extensionId', extensionIdParam);
+      } catch (err) {
+        console.error('无法存储extensionId到localStorage:', err);
+      }
     }
 
     // 如果用户已登录，重定向到dashboard
     if (isSignedIn && userId) {
       router.push("/dashboard");
     }
-  }, [isSignedIn, userId, router, searchParams]);
+  }, [isClient, isSignedIn, userId, router, searchParams]);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100">
@@ -41,7 +54,7 @@ export default function Home() {
             The easiest way to visualize your day's progress. Stay focused, manage time effectively, and achieve more with our Chrome extension.
           </p>
 
-          {extensionId && (
+          {isClient && extensionId && (
             <p className="mt-2 text-sm text-green-600">
               Connected to extension
             </p>

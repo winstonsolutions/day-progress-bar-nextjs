@@ -18,18 +18,29 @@ export const metadata: Metadata = {
   description: "Track your day's progress",
 };
 
+// 防止水合错误的包装组件
+function HydrationOverride({ children }: { children: React.ReactNode }) {
+  return (
+    <>
+      {children}
+    </>
+  );
+}
+
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" className="antialiased">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable}`}
       >
         <ClerkProvider>
-          {children}
+          <HydrationOverride>
+            {children}
+          </HydrationOverride>
         </ClerkProvider>
       </body>
     </html>

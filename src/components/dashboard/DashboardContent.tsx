@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@clerk/nextjs";
 
 // 定义我们自己的用户接口，只包含需要的属性
@@ -32,15 +32,134 @@ declare global {
         };
       };
     };
+    originalWindowLocation?: any;
   }
 }
 
 export default function DashboardContent({ user }: DashboardContentProps) {
   const [message, setMessage] = useState<string>("");
   const [isExtensionConnected, setIsExtensionConnected] = useState<boolean>(false);
+  const [isClient, setIsClient] = useState(false);
+  const [allowTabClose, setAllowTabClose] = useState<boolean>(false);
+  const authSentRef = useRef<boolean>(false);
   const { getToken } = useAuth();
 
+  // 首先检查是否在客户端
   useEffect(() => {
+    setIsClient(true);
+  }, []);
+
+  // 防止页面导航和关闭
+  useEffect(() => {
+    if (!isClient) return;
+
+    // 保存原始的window.location方法
+    if (typeof window !== "undefined") {
+      window.originalWindowLocation = {
+        replace: window.location.replace,
+        assign: window.location.assign,
+        href: window.location.href
+      };
+
+      // 覆盖window.location.replace方法
+      window.location.replace = function(url: string | URL) {
+        console.log("拦截到location.replace调用:", url);
+        if (!allowTabClose) {
+          console.log("阻止页面导航");
+          return;
+        }
+        return window.originalWindowLocation.replace.call(window.location, url);
+      };
+
+      // 覆盖window.location.assign方法
+      window.location.assign = function(url: string | URL) {
+        console.log("拦截到location.assign调用:", url);
+        if (!allowTabClose) {
+          console.log("阻止页面导航");
+          return;
+        }
+        return window.originalWindowLocation.assign.call(window.location, url);
+      };
+
+      // 覆盖window.location.href setter
+      Object.defineProperty(window.location, 'href', {
+        get: function() {
+          return window.originalWindowLocation.href;
+        },
+        set: function(url) {
+          console.log("拦截到location.href设置:", url);
+          if (!allowTabClose) {
+            console.log("阻止页面导航");
+            return window.originalWindowLocation.href;
+          }
+          window.originalWindowLocation.href = url;
+          return url;
+        }
+      });
+
+      // 拦截window.close
+      const originalClose = window.close;
+      window.close = function() {
+        console.log("拦截到window.close调用");
+        if (!allowTabClose) {
+          console.log("阻止页面关闭");
+          return;
+        }
+        return originalClose.call(window);
+      };
+    }
+
+    return () => {
+      // 清理：恢复原始方法
+      if (typeof window !== "undefined" && window.originalWindowLocation) {
+        window.location.replace = window.originalWindowLocation.replace;
+        window.location.assign = window.originalWindowLocation.assign;
+
+        Object.defineProperty(window.location, 'href', {
+          get: function() {
+            return window.originalWindowLocation.href;
+          },
+          set: function(url) {
+            window.originalWindowLocation.href = url;
+            return url;
+          }
+        });
+      }
+    };
+  }, [isClient, allowTabClose]);
+
+  // 添加页面关闭前的确认对话框
+  useEffect(() => {
+    if (!isClient) return;
+
+    // 添加beforeunload事件监听器
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      // 如果用户明确允许关闭标签页，则不阻止
+      if (allowTabClose) return;
+
+      // 防止页面被关闭，特别是在认证信息尚未发送到扩展时
+      e.preventDefault();
+      // 设置提示消息（注意：大多数现代浏览器不会显示自定义消息，而是显示标准提示）
+      e.returnValue = "认证过程可能尚未完成，确定要离开吗？";
+      return e.returnValue;
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [isClient, allowTabClose]);
+
+  // 在确认客户端后执行认证逻辑
+  useEffect(() => {
+    // 如果不是客户端环境，不执行任何操作
+    if (!isClient) return;
+
+    // 确保认证信息只发送一次
+    if (authSentRef.current) return;
+    authSentRef.current = true;
+
     // 发送认证数据到扩展的主函数
     const sendAuthToExtension = async () => {
       try {
@@ -104,8 +223,9 @@ export default function DashboardContent({ user }: DashboardContentProps) {
                 console.warn("方式1失败:", lastError.message);
               } else if (response && response.success) {
                 console.log("方式1成功:", response);
-                setMessage("成功连接到扩展并发送认证数据!");
+                setMessage("成功连接到扩展并发送认证数据! 您现在可以关闭此页面。");
                 setIsExtensionConnected(true);
+                // 不要立即允许关闭标签页，让用户手动关闭
               } else {
                 console.warn("方式1返回未知响应:", response);
               }
@@ -179,7 +299,10 @@ export default function DashboardContent({ user }: DashboardContentProps) {
       ) {
         console.log("收到扩展的响应:", event.data);
         setIsExtensionConnected(true);
-        setMessage("扩展成功接收到认证信息!");
+        setMessage("扩展成功接收到认证信息! 您现在可以手动关闭此页面。");
+
+        // 不自动允许关闭标签页，防止扩展自动关闭页面
+        // 如果扩展试图在response后立即关闭页面，浏览器会先显示确认对话框
       }
     };
 
@@ -188,7 +311,7 @@ export default function DashboardContent({ user }: DashboardContentProps) {
     return () => {
       window.removeEventListener("message", handleExtensionResponse);
     };
-  }, [user, getToken]);
+  }, [isClient, user, getToken]);
 
   // Safety check for if the user object is somehow null
   if (!user) {
@@ -218,6 +341,19 @@ export default function DashboardContent({ user }: DashboardContentProps) {
               : "⏳ 等待扩展连接..."}
           </p>
           {message && <p className="mt-2 text-sm text-gray-600">{message}</p>}
+          {isExtensionConnected && (
+            <>
+              <p className="mt-2 text-sm text-green-600 font-medium">
+                认证已完成，您可以手动关闭此页面并返回使用扩展。
+              </p>
+              <button
+                onClick={() => setAllowTabClose(true)}
+                className="mt-2 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition"
+              >
+                允许关闭页面
+              </button>
+            </>
+          )}
         </div>
       </div>
 
