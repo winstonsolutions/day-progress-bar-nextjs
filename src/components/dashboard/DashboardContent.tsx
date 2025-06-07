@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useAuth } from "@clerk/nextjs";
 
 // 定义我们自己的用户接口，只包含需要的属性
 interface SerializedUser {
@@ -34,50 +35,72 @@ declare global {
 export default function DashboardContent({ user }: DashboardContentProps) {
   const [message, setMessage] = useState<string>("");
   const [isExtensionConnected, setIsExtensionConnected] = useState<boolean>(false);
+  const { getToken } = useAuth();
 
   useEffect(() => {
     // Send auth data to the extension
-    const sendAuthToExtension = () => {
+    const sendAuthToExtension = async () => {
       try {
-        // Check if extension is available
-        if (typeof window !== "undefined" && window.chrome?.runtime?.sendMessage) {
-          // Prepare auth data
-          const authData = {
-            type: "auth_success",
-            userId: user.id,
+        // 从localStorage中获取extension_id
+        const extensionId = localStorage.getItem('extensionId');
+        console.log('Retrieved extension ID from localStorage:', extensionId);
+
+        // 获取Clerk token
+        const token = await getToken();
+
+        if (!token) {
+          setMessage("无法获取认证令牌");
+          return;
+        }
+
+        // Prepare auth data with token
+        const authData = {
+          action: "clerk-auth-success",
+          token: token,
+          user: {
+            id: user.id,
             email: user.emailAddress || "",
             firstName: user.firstName,
             lastName: user.lastName,
             imageUrl: user.imageUrl
-          };
-
-          // Get the extension ID from the URL query parameter if available
-          const urlParams = new URLSearchParams(window.location.search);
-          const extensionId = urlParams.get("extensionId");
-
-          if (extensionId) {
-            // Send message directly to the extension using its ID
-            window.chrome.runtime.sendMessage(extensionId, authData, (response: any) => {
-              if (response && response.success) {
-                setMessage("Successfully connected to the extension!");
-                setIsExtensionConnected(true);
-              }
-            });
-          } else {
-            // Broadcast to any listening extension
-            window.postMessage({
-              source: "day-progress-bar-website",
-              ...authData
-            }, "*");
-
-            setMessage("Auth data sent to extension (broadcast)");
           }
+        };
+
+        console.log("准备发送认证数据到扩展:", { ...authData, token: token ? token.substring(0, 10) + '...' : null });
+
+        // Check if extension is available
+        if (typeof window !== "undefined" && extensionId && window.chrome?.runtime?.sendMessage) {
+          // 直接发送消息到扩展
+          window.chrome.runtime.sendMessage(extensionId, authData, (response: any) => {
+            if (response && response.success) {
+              setMessage("成功连接到扩展并发送认证数据!");
+              setIsExtensionConnected(true);
+              console.log("扩展响应:", response);
+            } else {
+              console.error("扩展响应错误:", response);
+              setMessage("扩展响应错误");
+            }
+          });
         } else {
-          setMessage("Chrome extension API not detected");
+          // 使用postMessage广播
+          window.postMessage({
+            source: "day-progress-bar-website",
+            type: "clerk-auth-success",
+            token: token,
+            user: {
+              id: user.id,
+              email: user.emailAddress || "",
+              firstName: user.firstName,
+              lastName: user.lastName,
+              imageUrl: user.imageUrl
+            }
+          }, "*");
+
+          setMessage(`认证数据已广播 ${extensionId ? '(无法直接连接扩展)' : '(没有找到扩展ID)'}`);
         }
       } catch (error: unknown) {
-        console.error("Error sending auth data to extension:", error);
-        setMessage(`Error connecting to extension: ${error instanceof Error ? error.message : String(error)}`);
+        console.error("发送认证数据到扩展时出错:", error);
+        setMessage(`连接扩展时出错: ${error instanceof Error ? error.message : String(error)}`);
       }
     };
 
@@ -92,7 +115,7 @@ export default function DashboardContent({ user }: DashboardContentProps) {
         event.data.type === "auth_received"
       ) {
         setIsExtensionConnected(true);
-        setMessage("Extension successfully received authentication!");
+        setMessage("扩展成功接收到认证信息!");
       }
     };
 
@@ -101,7 +124,7 @@ export default function DashboardContent({ user }: DashboardContentProps) {
     return () => {
       window.removeEventListener("message", handleExtensionResponse);
     };
-  }, [user]);
+  }, [user, getToken]);
 
   // Safety check for if the user object is somehow null
   if (!user) {
@@ -123,27 +146,27 @@ export default function DashboardContent({ user }: DashboardContentProps) {
       </div>
 
       <div className="mb-6">
-        <h3 className="text-xl font-semibold mb-2">Extension Status</h3>
+        <h3 className="text-xl font-semibold mb-2">扩展状态</h3>
         <div className={`p-4 rounded-md ${isExtensionConnected ? 'bg-green-100' : 'bg-yellow-100'}`}>
           <p className="font-medium">
             {isExtensionConnected
-              ? "✅ Connected to Day Progress Bar extension"
-              : "⏳ Waiting for extension connection..."}
+              ? "✅ 已连接到 Day Progress Bar 扩展"
+              : "⏳ 等待扩展连接..."}
           </p>
           {message && <p className="mt-2 text-sm text-gray-600">{message}</p>}
         </div>
       </div>
 
       <div>
-        <h3 className="text-xl font-semibold mb-2">Your Account</h3>
+        <h3 className="text-xl font-semibold mb-2">您的账户</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="bg-gray-50 p-4 rounded-md">
-            <p className="text-sm text-gray-500">User ID</p>
+            <p className="text-sm text-gray-500">用户 ID</p>
             <p className="font-mono text-sm">{user.id}</p>
           </div>
           <div className="bg-gray-50 p-4 rounded-md">
-            <p className="text-sm text-gray-500">Email Verified</p>
-            <p>{user.emailVerified ? "Yes" : "No"}</p>
+            <p className="text-sm text-gray-500">邮箱已验证</p>
+            <p>{user.emailVerified ? "是" : "否"}</p>
           </div>
         </div>
       </div>

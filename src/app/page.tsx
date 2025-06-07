@@ -1,14 +1,33 @@
+"use client";
+
 import Image from "next/image";
 import Link from "next/link";
-import { currentUser } from "@clerk/nextjs/server";
-import { redirect } from "next/navigation";
+import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useAuth } from "@clerk/nextjs";
 
-export default async function Home() {
-  // Check if user is already logged in, redirect to dashboard if they are
-  const user = await currentUser();
-  if (user) {
-    redirect("/dashboard");
-  }
+export default function Home() {
+  const { isSignedIn, userId } = useAuth();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [extensionId, setExtensionId] = useState<string | null>(null);
+
+  useEffect(() => {
+    // 检测URL中的extension_id参数
+    const extensionIdParam = searchParams.get('extension_id');
+    if (extensionIdParam) {
+      console.log('Received extension_id:', extensionIdParam);
+      setExtensionId(extensionIdParam);
+
+      // 可以将extension_id存储在localStorage或sessionStorage中以便后续使用
+      localStorage.setItem('extensionId', extensionIdParam);
+    }
+
+    // 如果用户已登录，重定向到dashboard
+    if (isSignedIn && userId) {
+      router.push("/dashboard");
+    }
+  }, [isSignedIn, userId, router, searchParams]);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100">
@@ -21,6 +40,12 @@ export default async function Home() {
           <p className="mt-3 max-w-md mx-auto text-base text-gray-500 sm:text-lg md:mt-5 md:text-xl md:max-w-3xl">
             The easiest way to visualize your day's progress. Stay focused, manage time effectively, and achieve more with our Chrome extension.
           </p>
+
+          {extensionId && (
+            <p className="mt-2 text-sm text-green-600">
+              Connected to extension
+            </p>
+          )}
 
           <div className="mt-10 flex flex-col sm:flex-row gap-4 justify-center">
             <Link
