@@ -53,78 +53,41 @@ export default function DashboardContent({ user }: DashboardContentProps) {
   useEffect(() => {
     if (!isClient) return;
 
-    // 保存原始的window.location方法
-    if (typeof window !== "undefined") {
-      window.originalWindowLocation = {
-        replace: window.location.replace,
-        assign: window.location.assign,
-        href: window.location.href
-      };
+    // 保存原始的window.close方法
+    const originalClose = window.close;
 
-      // 覆盖window.location.replace方法
-      window.location.replace = function(url: string | URL) {
-        console.log("拦截到location.replace调用:", url);
-        if (!allowTabClose) {
-          console.log("阻止页面导航");
-          return;
-        }
-        return window.originalWindowLocation.replace.call(window.location, url);
-      };
+    // 记录尝试跳转行为，但不阻止
+    const monitorNavigation = () => {
+      console.log("检测到页面导航尝试");
 
-      // 覆盖window.location.assign方法
-      window.location.assign = function(url: string | URL) {
-        console.log("拦截到location.assign调用:", url);
-        if (!allowTabClose) {
-          console.log("阻止页面导航");
-          return;
-        }
-        return window.originalWindowLocation.assign.call(window.location, url);
-      };
+      // 如果不允许关闭，使用beforeunload事件来处理
+      if (!allowTabClose) {
+        console.log("提示用户导航可能会影响认证流程");
+      }
+    };
 
-      // 覆盖window.location.href setter
-      Object.defineProperty(window.location, 'href', {
-        get: function() {
-          return window.originalWindowLocation.href;
-        },
-        set: function(url) {
-          console.log("拦截到location.href设置:", url);
-          if (!allowTabClose) {
-            console.log("阻止页面导航");
-            return window.originalWindowLocation.href;
-          }
-          window.originalWindowLocation.href = url;
-          return url;
-        }
-      });
+    // 使用事件监听器监控导航尝试
+    window.addEventListener('popstate', monitorNavigation);
+    window.addEventListener('hashchange', monitorNavigation);
 
-      // 拦截window.close
-      const originalClose = window.close;
-      window.close = function() {
-        console.log("拦截到window.close调用");
-        if (!allowTabClose) {
-          console.log("阻止页面关闭");
-          return;
-        }
-        return originalClose.call(window);
-      };
-    }
+    // 重写window.close方法
+    window.close = function() {
+      console.log("拦截到window.close调用");
+      if (!allowTabClose) {
+        console.log("阻止页面关闭");
+        return;
+      }
+      return originalClose.call(window);
+    };
+
+    // 移除直接修改window.location属性的代码，
+    // 改为依赖beforeunload事件处理器来提示用户
 
     return () => {
-      // 清理：恢复原始方法
-      if (typeof window !== "undefined" && window.originalWindowLocation) {
-        window.location.replace = window.originalWindowLocation.replace;
-        window.location.assign = window.originalWindowLocation.assign;
-
-        Object.defineProperty(window.location, 'href', {
-          get: function() {
-            return window.originalWindowLocation.href;
-          },
-          set: function(url) {
-            window.originalWindowLocation.href = url;
-            return url;
-          }
-        });
-      }
+      // 清理：恢复原始方法和移除事件监听器
+      window.close = originalClose;
+      window.removeEventListener('popstate', monitorNavigation);
+      window.removeEventListener('hashchange', monitorNavigation);
     };
   }, [isClient, allowTabClose]);
 
