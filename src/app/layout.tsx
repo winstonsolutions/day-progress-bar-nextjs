@@ -33,9 +33,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="antialiased tongyi-design-pc">
+    <html lang="en" className="antialiased tongyi-design-pc" suppressHydrationWarning>
       <body
         className={`${geistSans.variable} ${geistMono.variable}`}
+        suppressHydrationWarning
       >
         <ClerkProvider>
           <HydrationOverride>

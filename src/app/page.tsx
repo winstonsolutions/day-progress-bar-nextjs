@@ -43,9 +43,9 @@ export default function Home() {
   }, [isClient, isSignedIn, userId, router, searchParams]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-24">
-        <div className="text-center">
+    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100" suppressHydrationWarning>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-24" suppressHydrationWarning>
+        <div className="text-center" suppressHydrationWarning>
           <h1 className="text-4xl font-extrabold tracking-tight text-gray-900 sm:text-5xl md:text-6xl">
             <span className="block">Day Progress Bar</span>
             <span className="block text-blue-600">Track Your Day, Boost Productivity</span>
