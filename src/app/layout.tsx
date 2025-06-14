@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
+import Header from "@/components/Header";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -40,7 +41,22 @@ export default function RootLayout({
       >
         <ClerkProvider>
           <HydrationOverride>
-            {children}
+            <div className="min-h-screen flex flex-col bg-gradient-to-b from-gray-50 to-gray-100">
+              {/* Global Header */}
+              <Header />
+
+              {/* Main Content */}
+              <main className="flex-grow">
+                {children}
+              </main>
+
+              {/* Footer */}
+              <footer className="w-full py-6 px-8 bg-white border-t border-gray-200">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-sm text-gray-500">
+                  &copy; {new Date().getFullYear()} Day Progress Bar
+                </div>
+              </footer>
+            </div>
           </HydrationOverride>
         </ClerkProvider>
       </body>

@@ -287,126 +287,77 @@ export default function DashboardContent({ user }: DashboardContentProps) {
   }
 
   return (
-    <div className="max-w-3xl mx-auto">
-      {/* 顶部导航 */}
-      <div className="flex items-center justify-between py-4 mb-4">
-        <div className="flex items-center">
-          <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center mr-2">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-white" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
-            </svg>
-          </div>
-          <span className="font-medium text-xl">Day Progress</span>
-        </div>
-        <button className="flex items-center bg-blue-50 text-blue-500 px-4 py-1 rounded-full text-sm">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
-            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
-          </svg>
-          免费用户
-        </button>
-      </div>
+    <div className="bg-gradient-to-b from-gray-50 to-gray-100 rounded-lg shadow-md p-6">
+      <h1 className="text-3xl font-bold text-gray-900 mb-6">Dashboard</h1>
 
-      {/* 欢迎信息 */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold mb-2">欢迎使用 Day Progress</h1>
-        <p className="text-gray-600">您当前正在使用免费版本，享受7天免费试用</p>
-      </div>
-
-      {/* 免费试用信息 */}
-      <div className="bg-white border border-gray-200 rounded-lg p-6 mb-6">
-        <div className="flex flex-col items-center justify-center py-6">
-          <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-4">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-blue-500" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
-            </svg>
-          </div>
-          <div className="text-center">
-            <h2 className="text-lg font-medium text-gray-900 mb-1">免费试用期</h2>
-            <div className="flex justify-center mb-2">
-              <span className="text-4xl font-bold">7</span>
-              <span className="self-end mb-1 ml-1">天剩余</span>
-            </div>
-            <div className="w-full bg-blue-100 h-2 rounded-full overflow-hidden">
-              <div className="bg-blue-500 h-2 rounded-full" style={{ width: '100%' }}></div>
-            </div>
-          </div>
+      {message && (
+        <div className={`mb-6 p-4 rounded-md ${isExtensionConnected ? 'bg-green-50 text-green-800' : 'bg-yellow-50 text-yellow-800'}`}>
+          {message}
         </div>
-        <p className="text-center text-sm text-gray-500 mt-2">试用期结束后，您需要购买Pro版本继续使用</p>
-      </div>
+      )}
 
-      {/* 购买Pro版本 */}
-      <div className="bg-white border border-gray-200 rounded-lg p-6 mb-6">
-        <div className="flex items-start mb-4">
-          <div className="w-8 h-8 bg-green-100 flex items-center justify-center rounded-full mr-3">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          </div>
-          <div>
-            <h3 className="font-medium">购买Pro版本</h3>
-            <p className="text-sm text-gray-500">一次性购买，永久使用所有功能</p>
-          </div>
-        </div>
+      <div className="bg-white p-6 rounded-lg shadow-sm mb-6">
+        <h2 className="text-xl font-semibold text-gray-800 mb-4">Welcome, {user.firstName || 'User'}</h2>
+
+        {/* Extension Connection Status */}
         <div className="mb-6">
-          <div className="text-3xl font-bold">¥6.99 <span className="text-sm font-normal text-gray-500">一次性付费</span></div>
+          <h3 className="text-lg font-medium text-gray-700 mb-2">Extension Status</h3>
+          <div className={`flex items-center ${isExtensionConnected ? 'text-green-600' : 'text-yellow-600'}`}>
+            <div className={`w-3 h-3 rounded-full mr-2 ${isExtensionConnected ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
+            <span>{isExtensionConnected ? 'Connected' : 'Not Connected'}</span>
+          </div>
         </div>
-        <button className="w-full bg-blue-500 text-white py-3 rounded-lg font-medium hover:bg-blue-600 transition">
-          立即购买
-        </button>
+
+        {/* Extension Instructions */}
+        {!isExtensionConnected && (
+          <div className="mb-6 p-4 bg-blue-50 text-blue-800 rounded-md">
+            <h3 className="text-lg font-medium mb-2">Connect Your Extension</h3>
+            <p className="mb-4">To connect your Day Progress Bar extension, please follow these steps:</p>
+            <ol className="list-decimal pl-5 space-y-2">
+              <li>Open the extension from your Chrome toolbar</li>
+              <li>Click on the account icon in the extension</li>
+              <li>Select "Connect to Account"</li>
+            </ol>
+          </div>
+        )}
+
+        {/* Activation Code Section (existing functionality) */}
+        <div className="mt-6">
+          <h3 className="text-lg font-medium text-gray-700 mb-2">Activation Code</h3>
+          <form onSubmit={handleActivationSubmit} className="flex flex-col sm:flex-row gap-3">
+            <input
+              type="text"
+              value={activationCode}
+              onChange={(e) => setActivationCode(e.target.value)}
+              placeholder="Enter activation code"
+              className="px-4 py-2 border border-gray-300 rounded-md flex-grow"
+            />
+            <button
+              type="submit"
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+            >
+              Activate
+            </button>
+          </form>
+        </div>
       </div>
 
-      {/* 激活验证 */}
-      <div className="bg-white border border-gray-200 rounded-lg p-6">
-        <div className="flex items-start mb-4">
-          <div className="w-8 h-8 bg-purple-100 flex items-center justify-center rounded-full mr-3">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-purple-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-            </svg>
-          </div>
-          <div>
-            <h3 className="font-medium">激活码验证</h3>
-            <p className="text-sm text-gray-500">已有激活码？输入激活码即可升级</p>
-          </div>
-        </div>
-        <form onSubmit={handleActivationSubmit}>
-          <input
-            type="text"
-            className="w-full border border-gray-300 rounded-lg px-4 py-2 mb-4"
-            placeholder="输入激活码"
-            value={activationCode}
-            onChange={(e) => setActivationCode(e.target.value)}
+      {/* User Profile Section */}
+      <div className="bg-white p-6 rounded-lg shadow-sm">
+        <h3 className="text-lg font-medium text-gray-700 mb-4">Your Profile</h3>
+        <div className="flex items-center">
+          <img
+            src={user.imageUrl || `https://ui-avatars.com/api/?name=${user.firstName || ''}+${user.lastName || ''}&background=random`}
+            alt="Profile"
+            className="w-12 h-12 rounded-full mr-4"
           />
-          <button
-            type="submit"
-            className="w-full bg-gray-100 text-gray-800 py-3 rounded-lg font-medium hover:bg-gray-200 transition"
-          >
-            输入激活码
-          </button>
-        </form>
-      </div>
-
-      {/* 扩展连接状态 - 隐藏但保留功能 */}
-      <div className="hidden mt-6">
-        <div className={`p-4 rounded-md ${isExtensionConnected ? 'bg-green-100' : 'bg-yellow-100'}`}>
-          <p className="font-medium">
-            {isExtensionConnected
-              ? "✅ 已连接到 Day Progress Bar 扩展"
-              : "⏳ 等待扩展连接..."}
-          </p>
-          {message && <p className="mt-2 text-sm text-gray-600">{message}</p>}
-          {isExtensionConnected && (
-            <>
-              <p className="mt-2 text-sm text-green-600 font-medium">
-                认证已完成，您可以手动关闭此页面并返回使用扩展。
-              </p>
-              <button
-                onClick={() => setAllowTabClose(true)}
-                className="mt-2 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition"
-              >
-                允许关闭页面
-              </button>
-            </>
-          )}
+          <div>
+            <p className="font-medium">{user.firstName} {user.lastName}</p>
+            <p className="text-sm text-gray-500">{user.emailAddress}</p>
+            <p className="text-xs text-gray-400">
+              {user.emailVerified ? 'Verified' : 'Not verified'}
+            </p>
+          </div>
         </div>
       </div>
     </div>

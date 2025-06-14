@@ -37,13 +37,13 @@ export default function Home() {
     }
 
     // 如果用户已登录，重定向到dashboard
-    if (isSignedIn && userId) {
-      router.push("/dashboard");
-    }
+    // if (isSignedIn && userId) {
+    //   router.push("/dashboard");
+    // }
   }, [isClient, isSignedIn, userId, router, searchParams]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100" suppressHydrationWarning>
+    <div className="min-h-screen" suppressHydrationWarning>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-24" suppressHydrationWarning>
         <div className="text-center" suppressHydrationWarning>
           <h1 className="text-4xl font-extrabold tracking-tight text-gray-900 sm:text-5xl md:text-6xl">
@@ -59,21 +59,6 @@ export default function Home() {
               Connected to extension
             </p>
           )}
-
-          <div className="mt-10 flex flex-col sm:flex-row gap-4 justify-center">
-            <Link
-              href="/sign-in"
-              className="w-full sm:w-auto px-8 py-3 text-base font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 md:py-4 md:text-lg md:px-10"
-            >
-              Sign In
-            </Link>
-            <Link
-              href="/sign-up"
-              className="w-full sm:w-auto px-8 py-3 text-base font-medium rounded-md text-blue-600 bg-white border border-blue-600 hover:bg-gray-50 md:py-4 md:text-lg md:px-10"
-            >
-              Create Account
-            </Link>
-          </div>
         </div>
 
         <div className="mt-20">
