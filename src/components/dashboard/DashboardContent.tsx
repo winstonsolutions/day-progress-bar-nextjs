@@ -13,8 +13,15 @@ interface SerializedUser {
   emailVerified: boolean;
 }
 
+interface ServerTrialData {
+  trialStartTime: number;
+  trialEndTime: number;
+  isTrialActive: boolean;
+}
+
 interface DashboardContentProps {
   user: SerializedUser;
+  serverTrialData?: ServerTrialData | null;
 }
 
 // Chrome extension types
@@ -36,19 +43,42 @@ declare global {
   }
 }
 
-export default function DashboardContent({ user }: DashboardContentProps) {
+export default function DashboardContent({ user, serverTrialData }: DashboardContentProps) {
   const [message, setMessage] = useState<string>("");
   const [isExtensionConnected, setIsExtensionConnected] = useState<boolean>(false);
   const [isClient, setIsClient] = useState(false);
   const [allowTabClose, setAllowTabClose] = useState<boolean>(false);
   const [activationCode, setActivationCode] = useState<string>("");
+  const [isLoadingToken, setIsLoadingToken] = useState<boolean>(false);
+  const [isPro, setIsPro] = useState<boolean>(false);
+  const [trialStartTime, setTrialStartTime] = useState<number | null>(serverTrialData?.trialStartTime || null);
+  const [trialTimeRemaining, setTrialTimeRemaining] = useState<number | null>(
+    serverTrialData?.isTrialActive ? serverTrialData.trialEndTime - Date.now() : null
+  );
+  const [isTrialActive, setIsTrialActive] = useState<boolean>(serverTrialData?.isTrialActive || false);
   const authSentRef = useRef<boolean>(false);
   const { getToken } = useAuth();
+  const [trialStatusChecked, setTrialStatusChecked] = useState<boolean>(!!serverTrialData);
 
   // 首先检查是否在客户端
   useEffect(() => {
     setIsClient(true);
-  }, []);
+
+    // 如果有服务器提供的试用数据，立即更新状态
+    if (serverTrialData) {
+      setTrialStartTime(serverTrialData.trialStartTime);
+      setIsTrialActive(serverTrialData.isTrialActive);
+
+      if (serverTrialData.isTrialActive) {
+        const currentTime = Date.now();
+        setTrialTimeRemaining(Math.max(0, serverTrialData.trialEndTime - currentTime));
+      } else {
+        setTrialTimeRemaining(0);
+      }
+
+      setTrialStatusChecked(true);
+    }
+  }, [serverTrialData]);
 
   // 防止页面导航和关闭
   useEffect(() => {
@@ -112,6 +142,164 @@ export default function DashboardContent({ user }: DashboardContentProps) {
     };
   }, [isClient, allowTabClose]);
 
+  // 获取Token的函数，包含重试逻辑
+  const getClerkToken = async (maxRetries = 3, delay = 1000) => {
+    setIsLoadingToken(true);
+    let token = null;
+    let retries = 0;
+
+    while (retries < maxRetries) {
+      try {
+        token = await getToken();
+        if (token) {
+          console.log("成功获取Clerk token");
+          setIsLoadingToken(false);
+          return token;
+        }
+        console.log(`未获取到token，尝试重试（${retries + 1}/${maxRetries}）`);
+        retries++;
+        // 等待一段时间再重试
+        await new Promise(resolve => setTimeout(resolve, delay));
+      } catch (error) {
+        console.error("获取token时发生错误:", error);
+        retries++;
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+
+    setIsLoadingToken(false);
+    return null;
+  };
+
+  // 监听扩展发送的试用状态更新消息
+  useEffect(() => {
+    if (!isClient || !isExtensionConnected) return;
+
+    // 创建消息监听器
+    const handleExtensionMessages = (event: MessageEvent) => {
+      // 检查是否是我们的消息
+      if (event.data && event.data.action === "trial-status-updated") {
+        console.log("收到试用状态更新:", event.data);
+
+        const currentTime = Date.now();
+        const trialEndTime = event.data.trialEndTime;
+
+        if (currentTime < trialEndTime) {
+          setIsTrialActive(true);
+          setTrialStartTime(event.data.trialStartTime);
+          setTrialTimeRemaining(trialEndTime - currentTime);
+          console.log("试用状态已更新: 活跃", formatRemainingTime(trialEndTime - currentTime));
+        } else {
+          setIsTrialActive(false);
+          setTrialTimeRemaining(0);
+          console.log("试用状态已更新: 已过期");
+        }
+      }
+    };
+
+    // 添加消息监听器
+    window.addEventListener("message", handleExtensionMessages);
+
+    // 主动请求当前试用状态
+    const extensionId = localStorage.getItem('extensionId');
+    if (extensionId && window.chrome?.runtime?.sendMessage) {
+      window.chrome.runtime.sendMessage(extensionId, { action: "get-trial-status" });
+    }
+
+    // 清理函数
+    return () => {
+      window.removeEventListener("message", handleExtensionMessages);
+    };
+  }, [isClient, isExtensionConnected]);
+
+  // 获取当前用户状态的函数
+  useEffect(() => {
+    if (!isClient || !isExtensionConnected || serverTrialData) return;
+
+    const getUserStatus = async () => {
+      try {
+        const extensionId = localStorage.getItem('extensionId');
+        if (!extensionId) return;
+
+        if (window.chrome?.runtime?.sendMessage) {
+          window.chrome.runtime.sendMessage(extensionId, {
+            action: "get-user-status"
+          }, (response) => {
+            if (response) {
+              console.log("获取到用户状态:", response);
+              setIsPro(response.isPro || false);
+
+              // 处理试用状态
+              if (response.isTrialActive && response.trialStartTime) {
+                setTrialStartTime(response.trialStartTime);
+                const currentTime = Date.now();
+                const trialEndTime = response.trialEndTime || (response.trialStartTime + (60 * 60 * 1000)); // 1小时(毫秒)
+
+                if (currentTime < trialEndTime) {
+                  setIsTrialActive(true);
+                  setTrialTimeRemaining(trialEndTime - currentTime);
+                  console.log("设置试用状态: 活跃", formatRemainingTime(trialEndTime - currentTime));
+                } else {
+                  setIsTrialActive(false);
+                  setTrialTimeRemaining(0);
+                  console.log("设置试用状态: 已过期");
+                }
+              } else {
+                // 如果没有明确的试用状态，则标记为已检查但未激活
+                setIsTrialActive(false);
+                setTrialTimeRemaining(null);
+                console.log("未找到活跃的试用");
+              }
+
+              // 标记已检查试用状态
+              setTrialStatusChecked(true);
+            }
+          });
+        }
+      } catch (error) {
+        console.error("获取用户状态时出错:", error);
+        // 即使出错，也标记为已检查
+        setTrialStatusChecked(true);
+      }
+    };
+
+    getUserStatus();
+
+    // 每分钟刷新一次用户状态，确保状态保持最新
+    const intervalId = setInterval(getUserStatus, 60000);
+
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [isClient, isExtensionConnected, serverTrialData]);
+
+  // 计时器更新试用剩余时间
+  useEffect(() => {
+    if (!isTrialActive || trialTimeRemaining === null) return;
+
+    const timer = setInterval(() => {
+      setTrialTimeRemaining(prev => {
+        if (prev === null || prev <= 0) {
+          setIsTrialActive(false);
+          clearInterval(timer);
+          return 0;
+        }
+        return prev - 1000;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [isTrialActive, trialTimeRemaining]);
+
+  // 格式化剩余时间为分:秒格式
+  const formatRemainingTime = (ms: number) => {
+    if (ms <= 0) return "00:00";
+    const totalSeconds = Math.floor(ms / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+  };
+
   // 在确认客户端后执行认证逻辑
   useEffect(() => {
     // 如果不是客户端环境，不执行任何操作
@@ -124,6 +312,9 @@ export default function DashboardContent({ user }: DashboardContentProps) {
     // 发送认证数据到扩展的主函数
     const sendAuthToExtension = async () => {
       try {
+        // 显示正在获取令牌的状态
+        setMessage("正在获取认证令牌...");
+
         // 从URL和localStorage两个地方获取extension_id
         const urlParams = new URLSearchParams(window.location.search);
         const extensionIdFromUrl = urlParams.get('extension_id');
@@ -142,12 +333,12 @@ export default function DashboardContent({ user }: DashboardContentProps) {
           console.log('已将扩展ID保存到localStorage:', extensionIdFromUrl);
         }
 
-        // 获取Clerk token
-        const token = await getToken();
+        // 获取Clerk token (使用带重试的函数)
+        const token = await getClerkToken();
 
         if (!token) {
-          setMessage("无法获取认证令牌，请刷新页面重试");
-          console.error("获取Clerk token失败");
+          setMessage("无法获取认证令牌，请点击下方按钮重试");
+          console.error("获取Clerk token失败，已达到最大重试次数");
           return;
         }
 
@@ -274,11 +465,144 @@ export default function DashboardContent({ user }: DashboardContentProps) {
     };
   }, [isClient, user, getToken]);
 
+  // 手动重试获取token并发送认证数据
+  const handleRetryAuth = async () => {
+    authSentRef.current = false; // 重置标志，允许重新发送认证数据
+
+    // 重新挂载认证逻辑
+    setMessage("正在重新尝试获取认证令牌...");
+
+    // 从URL和localStorage获取extension_id
+    const urlParams = new URLSearchParams(window.location.search);
+    const extensionIdFromUrl = urlParams.get('extension_id');
+    const extensionIdFromStorage = localStorage.getItem('extensionId');
+    const extensionId = extensionIdFromUrl || extensionIdFromStorage;
+
+    // 获取token并发送认证数据
+    try {
+      const token = await getClerkToken(3, 1000);
+
+      if (!token) {
+        setMessage("重试后仍无法获取认证令牌，请尝试刷新页面");
+        return;
+      }
+
+      // 准备认证数据
+      const authData = {
+        action: "clerk-auth-success",
+        type: "clerk-auth-success",
+        token: token,
+        user: {
+          id: user.id,
+          email: user.emailAddress || "",
+          firstName: user.firstName,
+          lastName: user.lastName,
+          imageUrl: user.imageUrl
+        },
+        source: "day-progress-bar-website"
+      };
+
+      // 使用chrome.runtime.sendMessage发送 (如果扩展ID可用)
+      if (typeof window !== "undefined" && extensionId && window.chrome?.runtime?.sendMessage) {
+        window.chrome.runtime.sendMessage(extensionId, authData);
+      }
+
+      // 使用window.postMessage广播
+      window.postMessage({
+        ...authData,
+        extensionId: extensionId
+      }, "*");
+
+      // 更新localStorage
+      localStorage.setItem('auth_token_for_extension', token);
+
+      setMessage("认证数据已重新发送，请等待扩展响应...");
+    } catch (error) {
+      console.error("重试获取token时出错:", error);
+      setMessage("重试过程中发生错误，请刷新页面");
+    }
+  };
+
   const handleActivationSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('激活码提交:', activationCode);
-    // 这里可以添加激活码验证逻辑
-    alert('激活验证功能即将推出');
+
+    if (!activationCode.trim()) {
+      alert('请输入有效的激活码');
+      return;
+    }
+
+    const extensionId = localStorage.getItem('extensionId');
+
+    if (!extensionId || !window.chrome?.runtime?.sendMessage) {
+      alert('无法与扩展建立连接，请确保扩展已安装并刷新页面');
+      return;
+    }
+
+    window.chrome.runtime.sendMessage(extensionId, {
+      action: "activate-license",
+      licenseKey: activationCode.trim(),
+      userId: user.id,
+      email: user.emailAddress
+    }, (response) => {
+      if (response && response.success) {
+        alert('激活成功！您现在已经是Pro用户。');
+        setIsPro(true);
+        setActivationCode('');
+      } else {
+        alert(`激活失败: ${response?.message || '无效的激活码'}`);
+      }
+    });
+  };
+
+  const handleStartTrial = () => {
+    const extensionId = localStorage.getItem('extensionId');
+
+    if (!extensionId || !window.chrome?.runtime?.sendMessage) {
+      alert('无法与扩展建立连接，请确保扩展已安装并刷新页面');
+      return;
+    }
+
+    window.chrome.runtime.sendMessage(extensionId, {
+      action: "start-trial",
+      userId: user.id,
+      email: user.emailAddress
+    }, (response) => {
+      if (response && response.success) {
+        setIsTrialActive(true);
+        setTrialStartTime(response.trialStartTime);
+        setTrialTimeRemaining(60 * 60 * 1000); // 1小时(毫秒)
+        alert('试用已重新开始！您现在可以免费体验1小时Pro功能。');
+
+        // 试用开始后刷新页面，以便从服务器获取最新的试用数据
+        setTimeout(() => {
+          window.location.reload();
+        }, 1500);
+      } else {
+        alert(`重新开始试用失败: ${response?.message || '未知错误'}`);
+      }
+    });
+  };
+
+  const handleBuyLicense = () => {
+    const extensionId = localStorage.getItem('extensionId');
+
+    if (!extensionId || !window.chrome?.runtime?.sendMessage) {
+      alert('无法与扩展建立连接，请确保扩展已安装并刷新页面');
+      return;
+    }
+
+    window.chrome.runtime.sendMessage(extensionId, {
+      action: "buy-license",
+      userId: user.id,
+      email: user.emailAddress,
+      price: 6.99
+    }, (response) => {
+      if (response && response.checkoutUrl) {
+        window.open(response.checkoutUrl, '_blank');
+      } else {
+        alert('创建结账会话失败，请稍后再试');
+      }
+    });
   };
 
   // Safety check for if the user object is somehow null
@@ -293,27 +617,34 @@ export default function DashboardContent({ user }: DashboardContentProps) {
       {message && (
         <div className={`mb-6 p-4 rounded-md ${isExtensionConnected ? 'bg-green-50 text-green-800' : 'bg-yellow-50 text-yellow-800'}`}>
           {message}
+          {message.includes("无法获取认证令牌") && (
+            <button
+              onClick={handleRetryAuth}
+              className="ml-4 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-md"
+              disabled={isLoadingToken}
+            >
+              {isLoadingToken ? '正在获取...' : '重新获取令牌'}
+            </button>
+          )}
         </div>
       )}
 
       <div className="bg-white p-6 rounded-lg shadow-sm mb-6">
         <h2 className="text-xl font-semibold text-gray-800 mb-4">Welcome, {user.firstName || 'User'}</h2>
 
-        {/* Extension Connection Status */}
         <div className="mb-6">
           <h3 className="text-lg font-medium text-gray-700 mb-2">Extension Status</h3>
-          <div className={`flex items-center ${isExtensionConnected ? 'text-green-600' : 'text-yellow-600'}`}>
-            <div className={`w-3 h-3 rounded-full mr-2 ${isExtensionConnected ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
+          <div className="flex items-center">
+            <span className={`inline-block w-3 h-3 rounded-full mr-2 ${isExtensionConnected ? 'bg-green-500' : 'bg-yellow-500'}`}></span>
             <span>{isExtensionConnected ? 'Connected' : 'Not Connected'}</span>
           </div>
         </div>
 
-        {/* Extension Instructions */}
         {!isExtensionConnected && (
-          <div className="mb-6 p-4 bg-blue-50 text-blue-800 rounded-md">
-            <h3 className="text-lg font-medium mb-2">Connect Your Extension</h3>
-            <p className="mb-4">To connect your Day Progress Bar extension, please follow these steps:</p>
-            <ol className="list-decimal pl-5 space-y-2">
+          <div className="bg-blue-50 p-4 rounded-md mb-6">
+            <h3 className="text-lg font-medium text-blue-700 mb-2">Connect Your Extension</h3>
+            <p className="text-blue-600 mb-4">To connect your Day Progress Bar extension, please follow these steps:</p>
+            <ol className="list-decimal pl-5 text-blue-700 space-y-2">
               <li>Open the extension from your Chrome toolbar</li>
               <li>Click on the account icon in the extension</li>
               <li>Select "Connect to Account"</li>
@@ -321,42 +652,170 @@ export default function DashboardContent({ user }: DashboardContentProps) {
           </div>
         )}
 
-        {/* Activation Code Section (existing functionality) */}
-        <div className="mt-6">
-          <h3 className="text-lg font-medium text-gray-700 mb-2">Activation Code</h3>
-          <form onSubmit={handleActivationSubmit} className="flex flex-col sm:flex-row gap-3">
-            <input
-              type="text"
-              value={activationCode}
-              onChange={(e) => setActivationCode(e.target.value)}
-              placeholder="Enter activation code"
-              className="px-4 py-2 border border-gray-300 rounded-md flex-grow"
-            />
-            <button
-              type="submit"
-              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-            >
-              Activate
-            </button>
-          </form>
-        </div>
-      </div>
+        {/* 模块1：用户类型与试用信息 */}
+        {isExtensionConnected && (
+          <div className="mb-8 bg-gray-50 p-5 rounded-lg border border-gray-200">
+            <h3 className="text-lg font-medium text-gray-700 mb-3">Account Status</h3>
 
-      {/* User Profile Section */}
-      <div className="bg-white p-6 rounded-lg shadow-sm">
-        <h3 className="text-lg font-medium text-gray-700 mb-4">Your Profile</h3>
-        <div className="flex items-center">
-          <img
-            src={user.imageUrl || `https://ui-avatars.com/api/?name=${user.firstName || ''}+${user.lastName || ''}&background=random`}
-            alt="Profile"
-            className="w-12 h-12 rounded-full mr-4"
-          />
-          <div>
-            <p className="font-medium">{user.firstName} {user.lastName}</p>
-            <p className="text-sm text-gray-500">{user.emailAddress}</p>
-            <p className="text-xs text-gray-400">
-              {user.emailVerified ? 'Verified' : 'Not verified'}
-            </p>
+            <div className="flex items-center mb-4">
+              <div className={`w-4 h-4 rounded-full mr-2 ${isPro ? 'bg-green-500' : 'bg-blue-500'}`}></div>
+              <span className="font-medium">{isPro ? 'Pro User' : 'Free User'}</span>
+              <span className={`ml-2 px-2 py-0.5 text-xs font-bold rounded ${isPro ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'}`}>
+                {isPro ? 'PRO' : 'FREE'}
+              </span>
+            </div>
+
+            {!isPro && (
+              <div className="mt-3">
+                {isTrialActive ? (
+                  <div className="bg-indigo-50 border border-indigo-200 rounded-md p-4">
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <p className="text-sm font-medium text-indigo-700">Pro Trial Active</p>
+                        <p className="text-xs text-indigo-600 mt-1">Try all Pro features for 1 hour</p>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-sm font-bold text-indigo-700">Time Remaining:</div>
+                        <div className="text-xl font-mono font-bold text-indigo-800">
+                          {trialTimeRemaining !== null ? formatRemainingTime(trialTimeRemaining) : "00:00"}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="mt-3">
+                      <div className="w-full bg-gray-200 rounded-full h-2.5">
+                        <div
+                          className="bg-indigo-600 h-2.5 rounded-full"
+                          style={{
+                            width: `${trialTimeRemaining !== null ? Math.max(0, Math.min(100, (trialTimeRemaining / (60 * 60 * 1000)) * 100)) : 0}%`,
+                            transition: 'width 1s linear'
+                          }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="bg-indigo-50 border border-indigo-200 rounded-md p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-indigo-700">Pro Trial</p>
+                        {trialStatusChecked ? (
+                          <p className="text-xs text-indigo-600 mt-1">
+                            {trialStartTime ? "Your trial has expired" : "Start your free trial"}
+                          </p>
+                        ) : (
+                          <p className="text-xs text-indigo-600 mt-1">Checking trial status...</p>
+                        )}
+                      </div>
+                      <button
+                        onClick={handleStartTrial}
+                        className="px-3 py-1 text-xs bg-indigo-600 text-white rounded-md shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                      >
+                        {trialStartTime ? "Restart Trial" : "Start Trial"}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 模块2：购买许可证 */}
+        {isExtensionConnected && !isPro && (
+          <div className="mb-8 bg-gray-50 p-5 rounded-lg border border-gray-200">
+            <h3 className="text-lg font-medium text-gray-700 mb-3">Get Pro Access</h3>
+
+            <div className="flex items-start p-4 bg-white border border-gray-200 rounded-md shadow-sm">
+              <div className="flex-grow">
+                <h4 className="text-lg font-semibold text-gray-900">Lifetime Pro License</h4>
+                <p className="text-gray-600 mt-1">One-time purchase, unlimited access to all Pro features</p>
+
+                <ul className="mt-3 space-y-1">
+                  <li className="flex items-center text-sm text-gray-600">
+                    <svg className="w-4 h-4 mr-2 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                    </svg>
+                    Unlimited custom settings
+                  </li>
+                  <li className="flex items-center text-sm text-gray-600">
+                    <svg className="w-4 h-4 mr-2 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                    </svg>
+                    Priority support
+                  </li>
+                  <li className="flex items-center text-sm text-gray-600">
+                    <svg className="w-4 h-4 mr-2 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                    </svg>
+                    Future updates included
+                  </li>
+                </ul>
+              </div>
+
+              <div className="text-right">
+                <div className="text-2xl font-bold text-gray-900">$6.99</div>
+                <div className="text-sm text-gray-500 mb-4">One-time payment</div>
+
+                <button
+                  onClick={handleBuyLicense}
+                  className="px-4 py-2 bg-green-600 text-white rounded-md shadow-sm hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500"
+                >
+                  Buy Now
+                </button>
+              </div>
+            </div>
+
+            <p className="text-xs text-gray-500 mt-3">License key will be sent to your email address after purchase</p>
+          </div>
+        )}
+
+        {/* 模块3：激活许可证 */}
+        {isExtensionConnected && !isPro && (
+          <div className="bg-gray-50 p-5 rounded-lg border border-gray-200 mb-6">
+            <h3 className="text-lg font-medium text-gray-700 mb-3">Activate License</h3>
+
+            <form onSubmit={handleActivationSubmit} className="space-y-4">
+              <div>
+                <label htmlFor="license-key" className="block text-sm font-medium text-gray-700 mb-1">
+                  License Key
+                </label>
+                <input
+                  id="license-key"
+                  type="text"
+                  value={activationCode}
+                  onChange={(e) => setActivationCode(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="Enter your license key"
+                />
+                <p className="mt-1 text-xs text-gray-500">Enter the license key you received by email after purchase</p>
+              </div>
+
+              <button
+                type="submit"
+                className="px-4 py-2 bg-blue-600 text-white rounded-md shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                Activate License
+              </button>
+            </form>
+          </div>
+        )}
+
+        {/* User Profile Section */}
+        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+          <h3 className="text-lg font-medium text-gray-700 mb-4">Your Profile</h3>
+          <div className="flex items-center">
+            <img
+              src={user.imageUrl || `https://ui-avatars.com/api/?name=${user.firstName || ''}+${user.lastName || ''}&background=random`}
+              alt="Profile"
+              className="w-12 h-12 rounded-full mr-4"
+            />
+            <div>
+              <p className="font-medium">{user.firstName} {user.lastName}</p>
+              <p className="text-sm text-gray-500">{user.emailAddress}</p>
+              <p className="text-xs text-gray-400">
+                {user.emailVerified ? 'Verified' : 'Not verified'}
+              </p>
+            </div>
           </div>
         </div>
       </div>

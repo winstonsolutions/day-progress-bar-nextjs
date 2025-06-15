@@ -131,6 +131,8 @@ async function handleClerkWebhook(request: Request) {
             return NextResponse.json({ success: false, error: "Invalid user data" }, { status: 400 });
           }
 
+          const currentTime = new Date().toISOString();
+
           const { data, error } = await supabaseAdmin
             .from('users')
             .insert({
@@ -138,8 +140,9 @@ async function handleClerkWebhook(request: Request) {
               email: email_addresses[0].email_address,
               first_name: first_name || null,
               last_name: last_name || null,
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString()
+              created_at: currentTime,
+              updated_at: currentTime,
+              trial_started_at: currentTime // 在注册时设置试用开始时间
             })
             .select();
 

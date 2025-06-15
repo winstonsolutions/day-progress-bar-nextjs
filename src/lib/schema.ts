@@ -18,6 +18,7 @@ export interface Database {
           first_name: string | null
           last_name: string | null
           updated_at: string
+          trial_started_at: string | null
         }
         Insert: {
           id?: string
@@ -27,6 +28,7 @@ export interface Database {
           first_name?: string | null
           last_name?: string | null
           updated_at?: string
+          trial_started_at?: string | null
         }
         Update: {
           id?: string
@@ -36,6 +38,7 @@ export interface Database {
           first_name?: string | null
           last_name?: string | null
           updated_at?: string
+          trial_started_at?: string | null
         }
       }
       user_preferences: {
