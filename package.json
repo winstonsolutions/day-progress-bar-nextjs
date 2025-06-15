@@ -11,13 +11,11 @@
   "dependencies": {
     "@clerk/nextjs": "^6.21.0",
     "@clerk/types": "^3.60.2",
+    "@supabase/supabase-js": "^2.50.0",
     "jsonwebtoken": "^9.0.2",
     "next": "15.3.3",
-    "pg": "^8.16.0",
-    "pg-hstore": "^2.3.4",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "sequelize": "^6.37.7",
     "svix": "^1.18.0"
   },
   "devDependencies": {

@@ -59,6 +59,32 @@ export default function Home() {
               Connected to extension
             </p>
           )}
+
+          {/* 添加注册、登录和免费试用提示，只在用户未登录时显示 */}
+          {isClient && !isSignedIn && (
+            <>
+              <div className="mt-8 flex flex-col sm:flex-row justify-center gap-4">
+                <Link href="/sign-up" className="inline-flex items-center justify-center px-5 py-3 border border-transparent text-base font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700">
+                  Sign up
+                </Link>
+                <Link href="/sign-in" className="inline-flex items-center justify-center px-5 py-3 border border-gray-300 text-base font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                  Sign in
+                </Link>
+              </div>
+              <p className="mt-3 text-sm text-gray-500">
+                Sign up or sign in to unlock <span className="font-semibold text-blue-600">Free 1-hour trial of Pro features</span> - No credit card required
+              </p>
+            </>
+          )}
+
+          {/* 用户已登录时显示进入Dashboard的按钮 */}
+          {isClient && isSignedIn && (
+            <div className="mt-8">
+              <Link href="/dashboard" className="inline-flex items-center justify-center px-5 py-3 border border-transparent text-base font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700">
+                Go to Dashboard
+              </Link>
+            </div>
+          )}
         </div>
 
         <div className="mt-20">
