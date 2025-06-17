@@ -3,29 +3,16 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { CheckCircleIcon, ClipboardDocumentIcon } from '@heroicons/react/24/outline';
+import { CheckCircleIcon, EnvelopeIcon } from '@heroicons/react/24/outline';
 
 export default function PaymentSuccessPage() {
   const searchParams = useSearchParams();
   const [email, setEmail] = useState<string>('');
-  const [licenseKey, setLicenseKey] = useState<string>('');
-  const [copied, setCopied] = useState<boolean>(false);
 
   useEffect(() => {
     const emailParam = searchParams.get('email');
-    const licenseKeyParam = searchParams.get('licenseKey');
-
     if (emailParam) setEmail(emailParam);
-    if (licenseKeyParam) setLicenseKey(licenseKeyParam);
   }, [searchParams]);
-
-  const handleCopyToClipboard = () => {
-    if (licenseKey) {
-      navigator.clipboard.writeText(licenseKey);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }
-  };
 
   return (
     <div className="max-w-3xl mx-auto py-12 px-4">
@@ -65,32 +52,28 @@ export default function PaymentSuccessPage() {
 
           <div className="mb-8">
             <h2 className="text-xl font-semibold mb-2">Your License Key</h2>
-            <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
-              <div className="flex items-center justify-between">
-                <div className="font-mono text-lg font-bold text-blue-800 tracking-wider">
-                  {licenseKey}
-                </div>
-                <button
-                  onClick={handleCopyToClipboard}
-                  className="p-2 text-blue-600 hover:text-blue-800 focus:outline-none"
-                  aria-label="Copy to clipboard"
-                >
-                  {copied ? (
-                    <span className="text-green-600 text-sm font-medium">Copied!</span>
-                  ) : (
-                    <ClipboardDocumentIcon className="h-5 w-5" />
-                  )}
-                </button>
+            <div className="bg-blue-50 border border-blue-200 rounded-md p-6">
+              <div className="flex items-center justify-center mb-4">
+                <EnvelopeIcon className="h-12 w-12 text-blue-500" />
               </div>
-              <p className="text-sm text-blue-600 mt-2">
-                This license key has also been sent to your email address.
-              </p>
+              <div className="text-center">
+                <p className="text-lg font-medium text-gray-800 mb-2">
+                  Your license key has been sent to your email
+                </p>
+                <p className="text-gray-600">
+                  Please check your inbox at <span className="font-medium">{email}</span> for your license key and activation instructions.
+                </p>
+                <p className="text-gray-500 text-sm mt-2">
+                  If you don't receive the email within a few minutes, please check your spam folder.
+                </p>
+              </div>
             </div>
           </div>
 
           <div className="mb-8">
             <h2 className="text-xl font-semibold mb-4">Activation Instructions</h2>
             <ol className="list-decimal pl-5 space-y-2 text-gray-700">
+              <li>Check your email for the license key</li>
               <li>Go to the Day Progress Bar dashboard</li>
               <li>Find the "Activate License" section</li>
               <li>Enter your license key in the input field</li>

@@ -28,7 +28,12 @@ export async function POST(request: NextRequest) {
     }
 
     // 构建成功和取消URL
-    const successUrl = new URL('/payment-success', request.nextUrl.origin).toString();
+    const successUrlBase = new URL('/payment-success', request.nextUrl.origin);
+    // 添加email参数到成功URL
+    if (email) {
+      successUrlBase.searchParams.set('email', email);
+    }
+    const successUrl = successUrlBase.toString();
     const cancelUrl = returnUrl || new URL('/payment?canceled=true', request.nextUrl.origin).toString();
 
     // 创建Stripe结账会话
