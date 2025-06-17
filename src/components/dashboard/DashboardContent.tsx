@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@clerk/nextjs";
+import BuyNowButton from "../BuyNowButton";
 
 // 定义我们自己的用户接口，只包含需要的属性
 interface SerializedUser {
@@ -584,25 +585,8 @@ export default function DashboardContent({ user, serverTrialData }: DashboardCon
   };
 
   const handleBuyLicense = () => {
-    const extensionId = localStorage.getItem('extensionId');
-
-    if (!extensionId || !window.chrome?.runtime?.sendMessage) {
-      alert('无法与扩展建立连接，请确保扩展已安装并刷新页面');
-      return;
-    }
-
-    window.chrome.runtime.sendMessage(extensionId, {
-      action: "buy-license",
-      userId: user.id,
-      email: user.emailAddress,
-      price: 6.99
-    }, (response) => {
-      if (response && response.checkoutUrl) {
-        window.open(response.checkoutUrl, '_blank');
-      } else {
-        alert('创建结账会话失败，请稍后再试');
-      }
-    });
+    // 此功能现在由BuyNowButton组件处理
+    console.log("使用BuyNowButton组件重定向到Stripe结账页面");
   };
 
   // Safety check for if the user object is somehow null
@@ -756,12 +740,13 @@ export default function DashboardContent({ user, serverTrialData }: DashboardCon
                 <div className="text-2xl font-bold text-gray-900">$6.99</div>
                 <div className="text-sm text-gray-500 mb-4">One-time payment</div>
 
-                <button
-                  onClick={handleBuyLicense}
-                  className="px-4 py-2 bg-green-600 text-white rounded-md shadow-sm hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500"
+                <BuyNowButton
+                  price="6.99"
+                  email={user.emailAddress}
+                  returnUrl={window.location.href}
                 >
                   Buy Now
-                </button>
+                </BuyNowButton>
               </div>
             </div>
 

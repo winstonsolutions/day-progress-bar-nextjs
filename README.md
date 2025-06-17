@@ -77,6 +77,35 @@ The dashboard automatically sends authentication data to the Chrome extension wh
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## Stripe Integration
+
+This project uses Stripe for payment processing. To set up Stripe:
+
+1. Create a [Stripe account](https://stripe.com) if you don't have one
+2. Get your API keys from the Stripe Dashboard
+3. Add the following environment variables to your `.env` file:
+
+```
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_your_publishable_key
+STRIPE_SECRET_KEY=sk_test_your_secret_key
+STRIPE_WEBHOOK_SECRET=whsec_your_webhook_secret
+```
+
+For local development:
+- Use Stripe test keys
+- Use [Stripe CLI](https://stripe.com/docs/stripe-cli) to test webhooks locally
+
+For production:
+- Use Stripe live keys
+- Configure webhook endpoints in your Stripe Dashboard
+
+### Testing the Checkout
+
+1. Navigate to `/payment` route
+2. Enter test information
+3. Click the "Buy Now" button to be redirected to Stripe Checkout
+4. Use Stripe test cards for payment (e.g., 4242 4242 4242 4242)
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:
