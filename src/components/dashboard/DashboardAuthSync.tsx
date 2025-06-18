@@ -22,7 +22,7 @@ declare global {
   }
 }
 
-export default function DashboardAuthSync() {
+export default function DashboardAuthSync({ isPro = false }: { isPro?: boolean }) {
   const { isSignedIn, isLoaded, getToken } = useAuth();
   const { user } = useUser();
   const [synced, setSynced] = useState(false);
@@ -60,6 +60,7 @@ export default function DashboardAuthSync() {
             email: user.primaryEmailAddress?.emailAddress || '',
             firstName: user.firstName || '',
             lastName: user.lastName || '',
+            isPro: isPro,
             // 添加更多你需要的字段
           };
 
@@ -114,7 +115,7 @@ export default function DashboardAuthSync() {
     };
 
     syncAuthToExtension();
-  }, [isLoaded, isSignedIn, searchParams, getToken, user]);
+  }, [isLoaded, isSignedIn, searchParams, getToken, user, isPro]);
 
   // Don't render anything visible by default
   // This is just a utility component to handle extension syncing
