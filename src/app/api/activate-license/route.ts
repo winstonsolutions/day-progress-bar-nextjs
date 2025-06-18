@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
 
     // 解析请求体
     const body = await request.json();
-    const { licenseKey, email } = body;
+    const { licenseKey, email: requestEmail } = body;
 
     if (!licenseKey) {
       return NextResponse.json({ success: false, error: 'License key is required' }, { status: 400 });
@@ -42,21 +42,89 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
+    // 获取当前用户的信息
+    const { data: userData, error: userError } = await supabaseAdmin
+      .from('users')
+      .select('id, email')
+      .eq('clerk_id', session.userId)
+      .single();
+
+    let userEmail: string;
+    let supabaseUserId: string;
+
+    if (userError || !userData) {
+      console.error('获取用户信息时出错:', userError || '未找到用户');
+
+      // 如果找不到用户，可能需要先创建用户
+      // 尝试从请求中获取邮箱
+      if (!requestEmail) {
+        return NextResponse.json({
+          success: false,
+          error: 'User not found in database and no email provided'
+        }, { status: 400 });
+      }
+
+      userEmail = requestEmail;
+
+      // 创建新用户记录
+      const { data: newUser, error: createError } = await supabaseAdmin
+        .from('users')
+        .insert({
+          clerk_id: session.userId,
+          email: userEmail,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .select('id, email')
+        .single();
+
+      if (createError || !newUser) {
+        console.error('创建用户时出错:', createError);
+        return NextResponse.json({
+          success: false,
+          error: 'Failed to create user record'
+        }, { status: 500 });
+      }
+
+      // 使用新创建的用户
+      supabaseUserId = newUser.id;
+    } else {
+      // 使用现有用户
+      userEmail = userData.email || requestEmail;
+      supabaseUserId = userData.id;
+    }
+
     // 检查许可证是否已经被激活
-    if (licenseData.user_id && licenseData.user_id !== session.userId) {
-      return NextResponse.json({
-        success: false,
-        error: 'This license key has already been activated by another user'
-      }, { status: 400 });
+    if (licenseData.user_id && licenseData.user_id !== supabaseUserId) {
+      // 如果许可证已经被激活，检查电子邮件是否匹配
+      // 获取与许可证关联的用户的邮箱
+      const { data: licenseOwnerData } = await supabaseAdmin
+        .from('users')
+        .select('email')
+        .eq('id', licenseData.user_id)
+        .single();
+
+      // 如果与许可证关联的邮箱与当前用户邮箱匹配，则允许激活
+      if (licenseData.email && (licenseData.email === userEmail || (licenseOwnerData && licenseOwnerData.email === userEmail))) {
+        console.log('邮箱匹配，允许重新激活许可证');
+        // 继续激活流程 - 将许可证重新分配给当前用户
+      } else {
+        return NextResponse.json({
+          success: false,
+          error: 'This license key has already been activated by another user'
+        }, { status: 400 });
+      }
     }
 
     // 激活许可证 - 将许可证与当前用户关联
     const { error: updateError } = await supabaseAdmin
       .from('licenses')
       .update({
-        user_id: session.userId,
+        user_id: supabaseUserId, // 使用Supabase用户ID而不是Clerk ID
         active: true,
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
+        // 存储邮箱以便将来验证
+        email: userEmail
       })
       .eq('license_key', licenseKey);
 

@@ -196,7 +196,8 @@ export async function POST(request: NextRequest) {
               active: true,
               created_at: new Date().toISOString(),
               expires_at: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(), // 1年后过期
-              updated_at: new Date().toISOString()
+              updated_at: new Date().toISOString(),
+              email: customerEmail // 存储客户邮箱以便后续验证
             })
             .select();
 
