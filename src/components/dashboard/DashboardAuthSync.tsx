@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useAuth } from "@clerk/nextjs";
+import { useAuth, useUser } from "@clerk/nextjs";
 import { useSearchParams } from "next/navigation";
 
 // Extend Window interface to include Chrome browser API type
@@ -24,6 +24,7 @@ declare global {
 
 export default function DashboardAuthSync() {
   const { isSignedIn, isLoaded, getToken } = useAuth();
+  const { user } = useUser();
   const [synced, setSynced] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const searchParams = useSearchParams();
@@ -49,14 +50,26 @@ export default function DashboardAuthSync() {
         }
 
         // If user is signed in, get their auth token and send to extension
-        if (isSignedIn) {
+        if (isSignedIn && user) {
           // Get the token from Clerk
           const token = await getToken();
+
+          // 准备用户数据
+          const userInfo = {
+            id: user.id,
+            email: user.primaryEmailAddress?.emailAddress || '',
+            firstName: user.firstName || '',
+            lastName: user.lastName || '',
+            // 添加更多你需要的字段
+          };
+
+          console.log('准备发送的用户数据:', userInfo);
 
           // Get user information
           const userData = {
             signedIn: true,
-            token
+            token,
+            user: userInfo
           };
 
           console.log(`Sending auth data to extension: ${extensionId}`);
@@ -101,7 +114,7 @@ export default function DashboardAuthSync() {
     };
 
     syncAuthToExtension();
-  }, [isLoaded, isSignedIn, searchParams, getToken]);
+  }, [isLoaded, isSignedIn, searchParams, getToken, user]);
 
   // Don't render anything visible by default
   // This is just a utility component to handle extension syncing
