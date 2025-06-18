@@ -21,11 +21,12 @@ interface ServerTrialData {
 interface DashboardContentProps {
   user: SerializedUser;
   serverTrialData?: ServerTrialData | null;
+  isPro?: boolean;
 }
 
-export default function DashboardContent({ user, serverTrialData }: DashboardContentProps) {
+export default function DashboardContent({ user, serverTrialData, isPro: initialIsPro = false }: DashboardContentProps) {
   const [activationCode, setActivationCode] = useState<string>("");
-  const [isPro, setIsPro] = useState<boolean>(false);
+  const [isPro, setIsPro] = useState<boolean>(initialIsPro);
   const [trialStartTime, setTrialStartTime] = useState<number | null>(serverTrialData?.trialStartTime || null);
   const [trialTimeRemaining, setTrialTimeRemaining] = useState<number | null>(
     serverTrialData?.isTrialActive ? serverTrialData.trialEndTime - Date.now() : null
@@ -353,6 +354,42 @@ export default function DashboardContent({ user, serverTrialData }: DashboardCon
                 Activate License
               </button>
             </form>
+          </div>
+        )}
+
+        {/* Pro User Features Section */}
+        {isPro && (
+          <div className="mb-8 bg-gray-50 p-5 rounded-lg border border-gray-200">
+            <h3 className="text-lg font-medium text-gray-700 mb-3">Pro Features</h3>
+
+            <div className="bg-green-50 border border-green-200 rounded-md p-4 mb-4">
+              <div className="flex items-center">
+                <svg className="w-6 h-6 text-green-600 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+                <span className="font-medium text-green-800">Pro License Active</span>
+              </div>
+              <p className="text-sm text-green-700 mt-2">
+                Thank you for supporting our product! You have unlimited access to all Pro features.
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              <div className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md transition-shadow">
+                <h4 className="font-medium text-gray-800">Custom Themes</h4>
+                <p className="text-sm text-gray-600 mt-1">Personalize your progress bar with custom colors and styles</p>
+              </div>
+
+              <div className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md transition-shadow">
+                <h4 className="font-medium text-gray-800">Advanced Settings</h4>
+                <p className="text-sm text-gray-600 mt-1">Configure advanced options for your progress bar</p>
+              </div>
+
+              <div className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md transition-shadow">
+                <h4 className="font-medium text-gray-800">Priority Support</h4>
+                <p className="text-sm text-gray-600 mt-1">Get faster responses to your support requests</p>
+              </div>
+            </div>
           </div>
         )}
 

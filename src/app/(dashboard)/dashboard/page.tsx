@@ -21,6 +21,41 @@ export default async function DashboardPage() {
     emailVerified: user.emailAddresses?.[0]?.verification?.status === "verified"
   };
 
+  // 检查用户是否为Pro用户（是否有有效的许可证）
+  let isPro = false;
+  try {
+    // 首先获取Supabase用户ID
+    const { data: userData, error: userError } = await supabaseAdmin
+      .from('users')
+      .select('id')
+      .eq('clerk_id', user.id)
+      .maybeSingle();
+
+    if (userData && userData.id) {
+      // 使用Supabase用户ID查询许可证
+      const { data: licenseData, error: licenseError } = await supabaseAdmin
+        .from('licenses')
+        .select('*')
+        .eq('user_id', userData.id)
+        .eq('active', true)
+        .maybeSingle();
+
+      if (licenseData && !licenseError) {
+        // 如果找到激活的许可证，检查是否过期
+        const now = new Date();
+        const expiresAt = licenseData.expires_at ? new Date(licenseData.expires_at) : null;
+
+        // 如果许可证没有过期日期或过期日期在未来，则用户是Pro用户
+        if (!expiresAt || expiresAt > now) {
+          isPro = true;
+          console.log('用户拥有有效的Pro许可证');
+        }
+      }
+    }
+  } catch (error) {
+    console.error('检查Pro状态时出错:', error);
+  }
+
   // 从Supabase获取用户的试用信息
   let trialData = null;
   try {
@@ -76,7 +111,7 @@ export default async function DashboardPage() {
 
   return (
     <div>
-      <DashboardContent user={serializedUser} serverTrialData={trialData} />
+      <DashboardContent user={serializedUser} serverTrialData={trialData} isPro={isPro} />
     </div>
   );
 }

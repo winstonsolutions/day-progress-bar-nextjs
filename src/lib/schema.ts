@@ -72,6 +72,8 @@ export interface Database {
           expires_at: string | null
           created_at: string
           updated_at: string
+          active: boolean
+          email: string | null
         }
         Insert: {
           id?: string
@@ -80,6 +82,8 @@ export interface Database {
           expires_at?: string | null
           created_at?: string
           updated_at?: string
+          active?: boolean
+          email?: string | null
         }
         Update: {
           id?: string
@@ -88,6 +92,8 @@ export interface Database {
           expires_at?: string | null
           created_at?: string
           updated_at?: string
+          active?: boolean
+          email?: string | null
         }
       }
     }
