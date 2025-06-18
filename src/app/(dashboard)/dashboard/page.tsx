@@ -24,6 +24,7 @@ export default async function DashboardPage() {
   // 检查用户是否为Pro用户（是否有有效的许可证）
   let isPro = false;
   try {
+    console.log('开始检查用户Pro状态，Clerk用户ID:', user.id);
     // 首先获取Supabase用户ID
     const { data: userData, error: userError } = await supabaseAdmin
       .from('users')
@@ -31,30 +32,63 @@ export default async function DashboardPage() {
       .eq('clerk_id', user.id)
       .maybeSingle();
 
+    if (userError) {
+      console.error('获取Supabase用户ID时出错:', userError);
+    }
+
+    console.log('Supabase用户查询结果:', userData);
+
     if (userData && userData.id) {
-      // 使用Supabase用户ID查询许可证
-      const { data: licenseData, error: licenseError } = await supabaseAdmin
+      console.log('找到Supabase用户ID:', userData.id);
+
+      // 当前时间
+      const now = new Date().toISOString();
+
+      // 1. 首先查询无过期日期的许可证
+      const { count: countNoExpiry, error: errorNoExpiry } = await supabaseAdmin
         .from('licenses')
-        .select('*')
+        .select('*', { count: 'exact', head: true })
         .eq('user_id', userData.id)
         .eq('active', true)
-        .maybeSingle();
+        .is('expires_at', null);
 
-      if (licenseData && !licenseError) {
-        // 如果找到激活的许可证，检查是否过期
-        const now = new Date();
-        const expiresAt = licenseData.expires_at ? new Date(licenseData.expires_at) : null;
-
-        // 如果许可证没有过期日期或过期日期在未来，则用户是Pro用户
-        if (!expiresAt || expiresAt > now) {
-          isPro = true;
-          console.log('用户拥有有效的Pro许可证');
-        }
+      if (errorNoExpiry) {
+        console.error('查询无过期日期许可证时出错:', errorNoExpiry);
       }
+
+      // 2. 然后查询未过期的许可证
+      const { count: countNotExpired, error: errorNotExpired } = await supabaseAdmin
+        .from('licenses')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', userData.id)
+        .eq('active', true)
+        .gt('expires_at', now);
+
+      if (errorNotExpired) {
+        console.error('查询未过期许可证时出错:', errorNotExpired);
+      }
+
+      // 总的有效许可证数量
+      const totalValidLicenses = (countNoExpiry || 0) + (countNotExpired || 0);
+
+      console.log('许可证查询结果 - 无过期日期许可证:', countNoExpiry, '未过期许可证:', countNotExpired);
+
+      // 检查是否有任何有效许可证记录
+      if (totalValidLicenses > 0) {
+        // 如果找到激活的许可证，设置用户为Pro
+        isPro = true;
+        console.log('用户拥有有效的Pro许可证，总许可证数量:', totalValidLicenses);
+      } else {
+        console.log('未找到活跃的许可证');
+      }
+    } else {
+      console.log('未找到对应的Supabase用户记录');
     }
   } catch (error) {
     console.error('检查Pro状态时出错:', error);
   }
+
+  console.log('最终确定的Pro状态:', isPro);
 
   // 从Supabase获取用户的试用信息
   let trialData = null;

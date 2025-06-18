@@ -19,6 +19,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
 
+    console.log('开始处理许可证激活，用户ID:', session.userId);
+
     // 解析请求体
     const body = await request.json();
     const { licenseKey, email: requestEmail } = body;
@@ -26,6 +28,8 @@ export async function POST(request: NextRequest) {
     if (!licenseKey) {
       return NextResponse.json({ success: false, error: 'License key is required' }, { status: 400 });
     }
+
+    console.log('许可证激活请求参数 - 许可证密钥:', licenseKey, '邮箱:', requestEmail);
 
     // 从数据库中验证许可证密钥
     const { data: licenseData, error: licenseError } = await supabaseAdmin
@@ -35,12 +39,14 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (licenseError || !licenseData) {
-      console.error('验证许可证时出错:', licenseError || '未找到许可证');
+      console.error('查询许可证时出错:', licenseError || '未找到许可证');
       return NextResponse.json({
         success: false,
         error: 'Invalid or expired license key'
       }, { status: 400 });
     }
+
+    console.log('查询到的许可证数据:', licenseData);
 
     // 获取当前用户的信息
     const { data: userData, error: userError } = await supabaseAdmin
@@ -54,6 +60,7 @@ export async function POST(request: NextRequest) {
 
     if (userError || !userData) {
       console.error('获取用户信息时出错:', userError || '未找到用户');
+      console.log('找不到用户记录，将尝试创建新用户');
 
       // 如果找不到用户，可能需要先创建用户
       // 尝试从请求中获取邮箱
@@ -79,20 +86,24 @@ export async function POST(request: NextRequest) {
         .single();
 
       if (createError || !newUser) {
-        console.error('创建用户时出错:', createError);
+        console.error('创建用户时出错:', createError || '未返回新用户数据');
         return NextResponse.json({
           success: false,
           error: 'Failed to create user record'
         }, { status: 500 });
       }
 
+      console.log('成功创建新用户:', newUser);
       // 使用新创建的用户
       supabaseUserId = newUser.id;
     } else {
+      console.log('找到现有用户记录:', userData);
       // 使用现有用户
       userEmail = userData.email || requestEmail;
       supabaseUserId = userData.id;
     }
+
+    console.log('准备激活许可证，关联到用户ID:', supabaseUserId);
 
     // 检查许可证是否已经被激活
     if (licenseData.user_id && licenseData.user_id !== supabaseUserId) {
@@ -104,11 +115,14 @@ export async function POST(request: NextRequest) {
         .eq('id', licenseData.user_id)
         .single();
 
+      console.log('许可证当前所有者:', licenseOwnerData);
+
       // 如果与许可证关联的邮箱与当前用户邮箱匹配，则允许激活
       if (licenseData.email && (licenseData.email === userEmail || (licenseOwnerData && licenseOwnerData.email === userEmail))) {
         console.log('邮箱匹配，允许重新激活许可证');
         // 继续激活流程 - 将许可证重新分配给当前用户
       } else {
+        console.log('许可证已被其他用户激活，且邮箱不匹配');
         return NextResponse.json({
           success: false,
           error: 'This license key has already been activated by another user'
@@ -135,6 +149,8 @@ export async function POST(request: NextRequest) {
         error: 'Failed to activate license'
       }, { status: 500 });
     }
+
+    console.log('许可证激活成功 - 许可证密钥:', licenseKey, '用户ID:', supabaseUserId);
 
     // 返回成功响应
     return NextResponse.json({

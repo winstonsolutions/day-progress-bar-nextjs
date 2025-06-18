@@ -115,9 +115,10 @@ export default function DashboardContent({ user, serverTrialData, isPro: initial
       setIsPro(true);
       setActivationCode('');
 
-      // 刷新页面以更新状态
+      // 修改：使用重定向而非简单刷新，添加时间戳和状态参数确保不使用缓存
       setTimeout(() => {
-        window.location.reload();
+        const timestamp = Date.now();
+        window.location.href = `/dashboard?activated=true&t=${timestamp}`;
       }, 1500);
     } catch (error) {
       console.error('激活许可证时出错:', error);
@@ -152,9 +153,10 @@ export default function DashboardContent({ user, serverTrialData, isPro: initial
       setTrialTimeRemaining(60 * 60 * 1000); // 1小时(毫秒)
       alert('试用已重新开始！您现在可以免费体验1小时Pro功能。');
 
-      // 试用开始后刷新页面，以便从服务器获取最新的试用数据
+      // 修改：使用重定向而非简单刷新，添加时间戳和状态参数确保不使用缓存
       setTimeout(() => {
-        window.location.reload();
+        const timestamp = Date.now();
+        window.location.href = `/dashboard?trialStarted=true&t=${timestamp}`;
       }, 1500);
     } catch (error) {
       console.error('开始试用时出错:', error);
