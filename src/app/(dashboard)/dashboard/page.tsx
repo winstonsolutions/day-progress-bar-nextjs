@@ -116,28 +116,6 @@ export default async function DashboardPage() {
     } else {
       // 用户在Supabase中不存在或没有trial_started_at字段
       console.log('No trial data found for user:', user.id);
-
-      // 尝试自动创建用户记录，使用supabaseAdmin绕过RLS策略
-      try {
-        const { error: insertError } = await supabaseAdmin
-          .from('users')
-          .insert({
-            clerk_id: user.id,
-            email: serializedUser.emailAddress,
-            first_name: serializedUser.firstName,
-            last_name: serializedUser.lastName,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          });
-
-        if (insertError) {
-          console.error('Failed to create user record in Supabase:', insertError);
-        } else {
-          console.log('Created new user record in Supabase');
-        }
-      } catch (insertError) {
-        console.error('Exception during user creation in Supabase:', insertError);
-      }
     }
   } catch (error) {
     console.error('Failed to fetch trial data:', error);
